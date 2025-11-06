@@ -21,6 +21,13 @@ def validate_age_input(new_value):
         return True
     return False
 
+# weight to 3digit
+def validate_weight_input(new_value):
+    if new_value == "":  
+        return True
+    if new_value.isdigit() and len(new_value) <= 3:
+        return True
+    return False
 
 # MAIN GUI
 root = tk.Tk()
@@ -82,9 +89,9 @@ tk.Label(profile_frame, text="Set Your Profile", font=("Arial", 18, "bold"), bg=
 
 
 tk.Label(profile_frame, text="Weight (kg):", bg="white", font=FONT_LABEL).grid(row=1, column=0, padx=10, pady=5, sticky="e")
-weight_entry = tk.Entry(profile_frame, width=20)
+validate_weight = root.register(validate_weight_input)
+weight_entry = tk.Entry(profile_frame, width=20, validate="key", validatecommand=(validate_weight, "%P"))
 weight_entry.grid(row=1, column=1, padx=10, pady=5)
-
 
 tk.Label(profile_frame, text="Age:", bg="white", font=FONT_LABEL).grid(row=2, column=0, padx=10, pady=5, sticky="e")
 validate_age = root.register(validate_age_input)
