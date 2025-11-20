@@ -1,243 +1,191 @@
-# ETO NEED PARA GUMANA ANG ATING PROGRAM
+import customtkinter as ctk
 import tkinter as tk
-from tkinter import ttk, messagebox
 from datetime import date
-from datafunctions import load_foods, add_log, total_today
+from datafunctions import (
+    load_foods,
+    add_log,
+    total_today,
+    reset_session_logs,
+    load_last_user,
+    save_user_record,
+    save_session_profile,
+    load_session_profile,
+    LOG_FILE, reset_session_logs,
+    STATE_FILE
+)
+from userfunctions import (
+    calculate_protein,
+    validate_age_input,
+    validate_weight_input,
+    calculate_protein_goal
+)
 import os
+from tkinter import messagebox
 
-# helper functions
-# Calculate protein content based on food type and amount consumed
-def calculate_protein(food, amount):
-    if food in food_data:
-        protein = food_data[food] * (amount / 100)
-        return round(protein, 2)    
-    else:
-        return 0
+# --- Initialize CTk ---
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
 
-# age to 2digit
-def validate_age_input(new_value):
-    if new_value == "":  
-        return True
-    if new_value.isdigit() and len(new_value) <= 2:
-        return True
-    return False
-
-# weight to 3digit  
-def validate_weight_input(new_value):
-    if new_value == "":  
-        return True
-    if new_value.isdigit() and len(new_value) <= 3:
-        return True
-    return False
-
-# MAIN GUI
-root = tk.Tk()
+root = ctk.CTk()
 root.title("GainTrack - Protein Intake Tracker")
 root.state("zoomed")
 
-
-# colors and fonts
-BG_COLOR = "#FF7B54"
-TEXT_COLOR = "white"
+# --- Colors & Fonts ---
+BG_COLOR = "#1E1E2F"
+FRAME_BG = "#2E2E3E"
+ENTRY_BG = "#3A3A4A"
+ACCENT_COLOR = "#FF4C29"
+TEXT_COLOR = "#FFFFFF"
 FONT_TITLE = ("Arial", 28, "bold")
-FONT_LABEL = ("Arial", 14)
+FONT_LABEL = ("Arial", 25)
 FONT_BUTTON = ("Arial", 14, "bold")
 
-
-# load data
 food_data = load_foods()
-protein_goal = 0
+protein_goal = 0  # Default state habang wala pang nasi-save na profile
 
+# ----------------- Functions -----------------
 
-# progress bar (style ng progress bar ya)
-style = ttk.Style()
-style.theme_use('default')
-style.configure("Orange.Horizontal.TProgressbar", troughcolor="#FFE8D6", background=BG_COLOR, thickness=30, bordercolor="#FFE8D6")
-
-
-# Top section ng main GUI
-top_frame = tk.Frame(root, bg=BG_COLOR, height=200)
-top_frame.pack(fill="x")
-
-
-# Application title label
-title_label = tk.Label(top_frame, text="GainTrack", bg=BG_COLOR, fg=TEXT_COLOR, font=FONT_TITLE)
-title_label.pack(pady=(30, 5))
-
-# Current date display label
-date_label = tk.Label(top_frame, text=date.today().strftime("%B %d, %Y"), bg=BG_COLOR, fg=TEXT_COLOR, font=("Arial", 16))
-date_label.pack()
-
-# Protein intake display showing current total vs goal
-protein_display = tk.Label(top_frame, text="0g / 0g", bg=BG_COLOR, fg=TEXT_COLOR, font=("Arial", 42, "bold"))
-protein_display.pack(pady=(10, 0))
-
-
-# Main frame
-main_frame = tk.Frame(root, bg="white")
-main_frame.pack(fill="both", expand=True, pady=20)
-
-
-# Progress bar to visualize protein goal completion percentage
-progress = ttk.Progressbar(main_frame, length=600, maximum=100, style="Orange.Horizontal.TProgressbar")
-progress.pack(pady=20)
-
-
-# Profile section ng main GUI
-profile_frame = tk.Frame(main_frame, bg="white")
-profile_frame.pack(pady=10)
-
-
-# Profile section title
-tk.Label(profile_frame, text="Set Your Profile", font=("Arial", 18, "bold"), bg="white").grid(row=0, column=0, columnspan=2, pady=(0, 10))
-
-# Weight input field with validation (max 3 digits)
-tk.Label(profile_frame, text="Weight (kg):", bg="white", font=FONT_LABEL).grid(row=1, column=0, padx=10, pady=5, sticky="e")
-validate_weight = root.register(validate_weight_input)
-weight_entry = tk.Entry(profile_frame, width=20, validate="key", validatecommand=(validate_weight, "%P"))
-weight_entry.grid(row=1, column=1, padx=10, pady=5)
-
-# Age input field with validation (max 2 digits)
-tk.Label(profile_frame, text="Age:", bg="white", font=FONT_LABEL).grid(row=2, column=0, padx=10, pady=5, sticky="e")
-validate_age = root.register(validate_age_input)
-age_entry = tk.Entry(profile_frame, width=20, validate="key", validatecommand=(validate_age, "%P"))
-age_entry.grid(row=2, column=1, padx=10, pady=5)
-
-# Goal selection dropdown (BULKING, CUTTING, or MAINTENANCE)
-tk.Label(profile_frame, text="Goal:", bg="white", font=FONT_LABEL).grid(row=3, column=0, padx=10, pady=5, sticky="e")
-goal_var = tk.StringVar(value="")
-goal_menu = ttk.Combobox(profile_frame, textvariable=goal_var, values=["BULKING", "CUTTING", "MAINTENANCE"], width=18, state="readonly")
-goal_menu.grid(row=3, column=1, padx=10, pady=5)
-
-
-# Save user profile and calculate protein goal based on weight and fitness goal
 def save_profile():
     global protein_goal
+    name = name_entry.get().strip()
+    if not name:
+        messagebox.showerror("Error", "Please enter your name.")
+        return
+
     try:
         weight = float(weight_entry.get())
     except ValueError:
         messagebox.showerror("Error", "Enter a valid weight.")
         return
-   
+
+    age_value = age_entry.get().strip()
     goal = goal_var.get()
     if not goal:
         messagebox.showerror("Error", "Select a goal.")
         return
 
-    # Calculate protein goal: BULKING (2.0g/kg), CUTTING (1.8g/kg), MAINTENANCE (1.6g/kg)
-    if goal == "BULKING":
-        target = weight * 2.0
-    elif goal == "CUTTING":
-        target = weight * 1.8
-    else:
-        target = weight * 1.6
-
-    # Set global protein goal and update display
-    protein_goal = round(target, 2)
+    protein_goal = calculate_protein_goal(weight, goal)
     update_progress()
+    profile_title_label.configure(text=f"Hello, {name}! Welcome to GainTrack!")
+
+    profile_data = {
+        "Name": name,
+        "Weight": weight,
+        "Age": age_value,
+        "Goal": goal,
+        "ProteinGoal": protein_goal
+    }
+
+    save_user_record(name, weight, age_value, goal, protein_goal)
+    save_session_profile(profile_data)
     messagebox.showinfo("Profile Saved", f"Daily Protein Goal: {protein_goal}g")
 
+def load_saved_profile():
+    global protein_goal
+    session_profile = load_session_profile()
+    profile_source = session_profile if session_profile else load_last_user()
+    if not profile_source:
+        return
 
-# Save Profile button to calculate and set daily protein goal
-tk.Button(profile_frame, text="Save Profile", command=save_profile, bg=BG_COLOR, fg="white",
-          font=FONT_BUTTON, width=18, height=1).grid(row=4, column=0, columnspan=2, pady=10)
+    try:
+        protein_goal = float(profile_source.get("ProteinGoal", 0))
+    except (TypeError, ValueError):
+        protein_goal = 0
 
+    name = profile_source.get("Name", "")
+    weight = profile_source.get("Weight", "")
+    age = profile_source.get("Age", "")
+    goal = profile_source.get("Goal", "")
 
-# Dito foods (FOOD INPUTS)
-input_frame = tk.Frame(main_frame, bg="white")
-input_frame.pack(pady=20)
+    name_entry.delete(0, tk.END)
+    name_entry.insert(0, name)
 
+    weight_entry.delete(0, tk.END)
+    weight_entry.insert(0, weight)
 
-# Food selection dropdown populated from foods.csv
-tk.Label(input_frame, text="Select Food:", bg="white", font=FONT_LABEL).grid(row=0, column=0, padx=10, pady=5, sticky="e")
-food_var = tk.StringVar()
-food_menu = ttk.Combobox(input_frame, textvariable=food_var, values=list(load_foods().keys()), width=25, state="readonly")
-food_menu.grid(row=0, column=1, padx=10, pady=5)
+    age_entry.delete(0, tk.END)
+    age_entry.insert(0, age)
 
-# Amount input field for food quantity in grams
-tk.Label(input_frame, text="Amount (grams):", bg="white", font=FONT_LABEL).grid(row=1, column=0, padx=10, pady=5, sticky="e")
-amount_entry = tk.Entry(input_frame, width=27)
-amount_entry.grid(row=1, column=1, padx=10, pady=5)
+    if goal in goal_menu._values:  # customtkinter Combobox uses _values
+        goal_var.set(goal)
 
+    if name:
+        profile_title_label.configure(text=f"Hello, {name}! Welcome to GainTrack!")
 
-# This is buttons
-# Update progress bar and protein display based on today's total intake
 def update_progress():
     today_total = total_today()
-    if protein_goal > 0:
-        # Calculate percentage and cap at 100%
-        percentage = min((today_total / protein_goal) * 100, 100)
-        progress["value"] = percentage
-        protein_display.config(text=f"{today_total}g / {protein_goal}g")
-        # Disable add button if goal is reached
-        if today_total >= protein_goal:
-            add_btn.config(state="disabled")
-        else:
-            add_btn.config(state="normal")
-    else:
-        # No goal set, just show current total
-        protein_display.config(text=f"{today_total}g / 0g")
-        add_btn.config(state="normal")
+    
+    # Always define fraction
+    fraction = min(today_total / protein_goal, 1.0) if protein_goal > 0 else 0
 
+    # Update progress bar and text
+    progress.set(fraction)
+    protein_display.configure(
+        text=f"{today_total}g / {protein_goal}g" if protein_goal > 0 else f"{today_total}g / 0g"
+    )
 
+    # Disable add button if goal reached
+    add_btn.configure(state="disabled" if protein_goal > 0 and today_total >= protein_goal else "normal")
 
-# Log food intake, calculate protein, save to CSV, and update display
+    # Update progress bar color
+    progress.configure(progress_color=ACCENT_COLOR if today_total > 0 else progress._fg_color)
+
+    
 def log_food():
     food = food_var.get()
     if not food:
         messagebox.showwarning("Missing", "Please select a food item.")
         return
+
     try:
         amount = float(amount_entry.get())
     except ValueError:
-        messagebox.showerror("Error", "Please enter a valid number for amount.")
+        messagebox.showerror("Error", "Enter a valid number for amount.")
         return
-   
-    # Calculate protein content and save to logs.csv
-    protein = calculate_protein(food, amount)
+
+    protein = calculate_protein(food_data, food, amount)
     add_log(food, amount, protein)
     update_progress()
     messagebox.showinfo("Logged", f"{protein}g of protein added from {food}!")
-    # Check if daily goal is reached
-    today_total = total_today()
-    if protein_goal > 0 and today_total >= protein_goal:
+    if protein_goal > 0 and total_today() >= protein_goal:
         messagebox.showinfo("Goal Reached!", f"You've reached your daily protein goal of {protein_goal}g!")
-        add_btn.config(state="disabled")
+        add_btn.configure(state="disabled")
 
-
-# Clear all input fields and reset protein goal (does not delete history)
 def clear_program():
+    """Resets the dashboard and clears session/profile files."""
     global protein_goal
-    # Clear all input fields
+
+    # Clear GUI inputs
     food_var.set("")
     amount_entry.delete(0, tk.END)
     weight_entry.delete(0, tk.END)
     age_entry.delete(0, tk.END)
     goal_var.set("")
+    profile_title_label.configure(text=PROFILE_HEADING)
 
-    # Reset data and display
+    # Reset session logs and protein goal
+    reset_session_logs()
     protein_goal = 0
-    protein_display.config(text="0g / 0g")
-    progress["value"] = 0
-    add_btn.config(state="normal")
+    update_progress()
+    add_btn.configure(state="normal")
+
+    # Remove saved session/profile
+    if os.path.exists(STATE_FILE):
+        os.remove(STATE_FILE)
 
     messagebox.showinfo("Reset", "Program has been reset!")
 
-# Display history window showing all logged protein intake from logs.csv
+
 def show_history():
-    if not os.path.exists("logs.csv"):
+    if not os.path.exists(LOG_FILE):
         messagebox.showinfo("History", "No history available yet.")
         return
 
-    # Create new window for history display
     history_window = tk.Toplevel(root)
     history_window.title("History")
     history_window.geometry("400x400")
 
-    tk.Label(history_window, text="Protein Intake History",
-             font=("Arial", 16, "bold")).pack(pady=10)
-
-    # Content frame with text box and scrollbar for viewing all logs
+    tk.Label(history_window, text="Protein Intake History", font=("Arial", 16, "bold")).pack(pady=10)
     content_frame = tk.Frame(history_window)
     content_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
@@ -248,61 +196,195 @@ def show_history():
     scrollbar.pack(side="right", fill="y")
     text_box.config(yscrollcommand=scrollbar.set)
 
-    # Read and display all entries from logs.csv
-    with open("logs.csv", "r") as file:
+    with open(LOG_FILE, "r") as file:
         for line in file:
             text_box.insert(tk.END, line)
-
     text_box.config(state="disabled")
 
-    # Separate frame for the reset button so it's always visible
     btn_frame = tk.Frame(history_window)
     btn_frame.pack(pady=5)
-    tk.Button(btn_frame, text="Reset History",
-          command=reset_history, bg=BG_COLOR, fg="black",
-          font=FONT_BUTTON, width=15).pack()
+    tk.Button(btn_frame, text="Reset History", command=reset_history, bg=BG_COLOR, fg="white",
+              font=FONT_BUTTON, width=15).pack()
 
-
-# Clear all history data from logs.csv file (permanently deletes all logged entries)
 def reset_history():
-    if not os.path.exists("logs.csv"):
+    if not os.path.exists(LOG_FILE):
         messagebox.showinfo("Reset History", "No history to reset.")
         return
 
-    # Ask for confirmation before deleting all history
     confirm = messagebox.askyesno("Confirm Reset", "Are you sure you want to delete ALL history?")
     if not confirm:
         return
 
-    # Clear the entire logs.csv file
-    with open("logs.csv", "w") as file:
+    with open(LOG_FILE, "w") as file:
         file.write("")
-
     messagebox.showinfo("Reset History", "History has been cleared!")
 
+#GUI Layout
 
-# Add protein & clear button section
-add_btn_frame = tk.Frame(main_frame, bg="white")
+# Top Frame
+top_frame = ctk.CTkFrame(root, corner_radius=0, fg_color=BG_COLOR)
+top_frame.pack(fill="x")
+
+title_label = ctk.CTkLabel(top_frame, text="GainTrack", font=FONT_TITLE, fg_color=None, text_color=TEXT_COLOR)
+title_label.pack(pady=(30, 5))
+
+date_label = ctk.CTkLabel(top_frame, text=date.today().strftime("%B %d, %Y"), font=("Arial", 16), fg_color=None, text_color=TEXT_COLOR)
+date_label.pack()
+
+protein_display = ctk.CTkLabel(top_frame, text="0g / 0g", font=("Arial", 42, "bold"), fg_color=None, text_color=TEXT_COLOR)
+protein_display.pack(pady=(10, 20))
+
+# Main Frame
+main_frame = ctk.CTkFrame(root, corner_radius=20, fg_color=FRAME_BG)
+main_frame.pack(fill="both", expand=True, pady=10, padx=20)
+
+# Progress Bar
+progress = ctk.CTkProgressBar(
+    main_frame, 
+    width=800,
+    height=50, 
+    progress_color=ACCENT_COLOR,
+    )
+progress.pack(pady=20)
+
+# Profile Frame
+# --- Profile Frame (centered content, taller frame) ---
+PROFILE_HEADING = "Set Your Profile"
+
+profile_frame = ctk.CTkFrame(
+    main_frame,
+    corner_radius=50,
+    fg_color=ENTRY_BG,
+    width=550,
+    height=350  # taller vertically
+)
+profile_frame.pack(pady=30, padx=10)  # keep spacing above/below, no fill="both" to avoid stretching
+
+# Inner frame to center content
+profile_content = ctk.CTkFrame(profile_frame, fg_color="transparent")
+profile_content.place(relx=0.5, rely=0.5, anchor="center")  # center content vertically & horizontally
+
+# Profile heading
+profile_title_label = ctk.CTkLabel(
+    profile_content, 
+    text=PROFILE_HEADING, 
+    font=("Segoe UI", 25, "bold"), 
+    fg_color=None, 
+    text_color=TEXT_COLOR
+)
+profile_title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
+
+# Name
+ctk.CTkLabel(profile_content, text="Name:", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=1, column=0, padx=10, pady=10, sticky="e")
+name_entry = ctk.CTkEntry(profile_content, width=280, height=35, corner_radius=10)
+name_entry.grid(row=1, column=1, padx=10, pady=10)
+
+# Weight
+ctk.CTkLabel(profile_content, text="Weight (kg):", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=2, column=0, padx=10, pady=10, sticky="e")
+weight_entry = ctk.CTkEntry(profile_content, width=280, height=35, corner_radius=10, validate="key", validatecommand=(root.register(validate_weight_input), "%P"))
+weight_entry.grid(row=2, column=1, padx=10, pady=10)
+
+# Age
+ctk.CTkLabel(profile_content, text="Age:", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=3, column=0, padx=10, pady=10, sticky="e")
+age_entry = ctk.CTkEntry(profile_content, width=280, height=35, corner_radius=10, validate="key", validatecommand=(root.register(validate_age_input), "%P"))
+age_entry.grid(row=3, column=1, padx=10, pady=10)
+
+# Goal
+ctk.CTkLabel(profile_content, text="Goal:", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=4, column=0, padx=10, pady=10, sticky="e")
+goal_var = tk.StringVar()
+goal_menu = ctk.CTkComboBox(profile_content, width=280, height=35, values=["BULKING", "CUTTING", "MAINTENANCE"], variable=goal_var, corner_radius=10, state="readonly")
+goal_menu.grid(row=4, column=1, padx=10, pady=10)
+
+# Save Profile Button
+ctk.CTkButton(
+    profile_content, 
+    text="Save Profile", 
+    font=FONT_LABEL, 
+    command=save_profile, 
+    fg_color=ACCENT_COLOR,
+    hover_color="#FF6A42", 
+    corner_radius=15, 
+    width=200, 
+    height=30
+
+).grid(row=5, column=0, columnspan=2, pady=20)
+
+#Food Input Frame (keep same, just center content)
+input_frame = ctk.CTkFrame(
+    main_frame, 
+    corner_radius=20, 
+    fg_color=ENTRY_BG, 
+    width=450, 
+    height=150
+    )
+
+input_frame.pack(pady=0, padx=10)
+input_frame.pack_propagate(False)  # prevent shrinking
+
+input_content = ctk.CTkFrame(input_frame, fg_color="transparent")
+input_content.place(relx=0.5, rely=0.5, anchor="center")
+
+ctk.CTkLabel(input_content, text="Select Food:", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=0, column=0, padx=10, pady=10, sticky="e")
+food_var = tk.StringVar()
+food_menu = ctk.CTkComboBox(input_content, values=list(food_data.keys()), variable=food_var, corner_radius=10, state="readonly", width=200)
+food_menu.grid(row=0, column=1, padx=10, pady=10)
+
+ctk.CTkLabel(input_content, text="Amount (grams):", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=1, column=0, padx=10, pady=10, sticky="e")
+amount_entry = ctk.CTkEntry(input_content, width=200, corner_radius=10)
+amount_entry.grid(row=1, column=1, padx=10, pady=10)
+
+# --- Buttons Frame (centered buttons) ---
+add_btn_frame = ctk.CTkFrame(main_frame, corner_radius=20, fg_color=FRAME_BG, width=700, height=100)
 add_btn_frame.pack(pady=20)
+add_btn_frame.pack_propagate(False)
 
-# History button to view all logged protein intake
-history_btn = tk.Button(add_btn_frame, text="History", command=show_history,
-                        bg=BG_COLOR, fg="white", font=FONT_BUTTON, width=10, height=2)
-history_btn.grid(row=0, column=0, padx=10)
+buttons_content = ctk.CTkFrame(add_btn_frame, fg_color="transparent", width=600, height=50)
+buttons_content.place(relx=0.5, rely=0.5, anchor="center")
+buttons_content.pack_propagate(False)
 
-# Add Protein button to log food intake
-add_btn = tk.Button(add_btn_frame, text="+ Add Protein", command=log_food,
-                    bg=BG_COLOR, fg="white", font=FONT_BUTTON, width=18, height=2)
-add_btn.grid(row=0, column=1, padx=10)
+history_btn = ctk.CTkButton(
+    buttons_content, 
+    text="History", 
+    command=show_history, 
+    fg_color=ACCENT_COLOR, 
+    hover_color="#FF6A42", 
+    corner_radius=15, 
+    width=200,
+    height=30,
+    font=FONT_LABEL
+    )
 
-# Clear button to reset all input fields and protein goal
-clear_btn = tk.Button(add_btn_frame, text="Clear", command=clear_program,
-                      bg=BG_COLOR, fg="white", font=FONT_BUTTON, width=10, height=2)
-clear_btn.grid(row=0, column=2, padx=10)
+history_btn.grid(row=0, column=0, padx=20)
+
+add_btn = ctk.CTkButton(
+    buttons_content, 
+    text="+ Add Protein", 
+    command=log_food, 
+    fg_color=ACCENT_COLOR, 
+    hover_color="#FF6A42", 
+    corner_radius=15, 
+    width=200,
+    height=30,
+    font=FONT_LABEL
+    )
+
+add_btn.grid(row=0, column=1, padx=20)
+
+clear_btn = ctk.CTkButton(
+    buttons_content, 
+    text="Clear", 
+    command=clear_program, 
+    fg_color=ACCENT_COLOR, 
+    hover_color="#FF6A42", 
+    corner_radius=15, 
+    width=200,
+    height=30,
+    font=FONT_LABEL
+    )
+clear_btn.grid(row=0, column=2, padx=20)
 
 
-
-# Initialize progress display on startup
+# ----------------- Start -----------------
+load_saved_profile()
 update_progress()
-# Start the GUI event loop
 root.mainloop()
