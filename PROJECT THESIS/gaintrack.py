@@ -17,7 +17,8 @@ from userfunctions import (
     validate_age_input,
     validate_weight_input,
     validate_name_input,
-    calculate_protein_goal
+    calculate_protein_goal,
+    validate_amount_input
 )
 import os
 from tkinter import messagebox
@@ -27,7 +28,7 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")  
 
 root = ctk.CTk()  # Main window ng application
-root.title("GainTrack - Protein Intake Tracker")
+root.title("GainTrack - Protein Intake Monitoring System with GUI")
 root.state("zoomed")  # Fullscreen mode para maximize ang screen space at better user experience
 
 # Get screen dimensions and scaling factor 
@@ -50,9 +51,42 @@ FONT_TITLE = ("Arial", int(28*scale), "bold")
 FONT_LABEL = ("Arial", int(20*scale))  
 FONT_BUTTON = ("Arial", int(14*scale), "bold")  
 
+FOOD_SUGGESTIONS = {
+    "BULKING": {
+        "emoji": "🥩",
+        "title": "High-Protein Power Plate",
+        "items": [
+            "Grilled chicken breast with quinoa",
+            "Roasted sweet potato wedges",
+            "Steamed broccoli + olive oil drizzle"
+        ]
+    },
+    "MAINTENANCE": {
+        "emoji": "🥗",
+        "title": "Balanced Everyday Bowl",
+        "items": [
+            "Baked salmon with brown rice",
+            "Mixed greens & cherry tomatoes",
+            "Greek yogurt with berries"
+        ]
+    },
+    "CUTTING": {
+        "emoji": "🥦",
+        "title": "Lean & Light Plate",
+        "items": [
+            "Turkey lettuce wraps",
+            "Cauliflower rice stir-fry",
+            "Citrus-infused cucumber salad"
+        ]
+    }
+}
+
 # Load food database from CSV file - dictionary format: {food_name: protein_per_100g}
 food_data = load_foods()
 protein_goal = 0  # Default state habang wala pang saved profile - will be updated pag may profile na
+suggestion_icon_var = tk.StringVar(value="🍽️")
+suggestion_title_var = tk.StringVar(value="Pick a goal to view a sample plate")
+suggestion_details_var = tk.StringVar(value="Tap Bulking, Cutting, or Maintenance to see ideas.")
 
 # Functions
 def save_profile():
@@ -67,18 +101,26 @@ def save_profile():
     except ValueError:  # Catch error kung hindi valid number ang input
         messagebox.showerror("Error", "Enter a valid weight.")
         return
-    age_value = age_entry.get().strip()  
+    age_value = age_entry.get().strip()
+    if not age_value:
+        messagebox.showerror("Error", "Please enter your age.")
+        return  
     goal = goal_var.get()  # Get selected goal from combobox
     if not goal:  # Check kung may na-select na goal
         messagebox.showerror("Error", "Select a goal.")
         return
-
     # Calculate protein goal based sa weight at fitness goal (bulking/cutting/maintenance)
     protein_goal = calculate_protein_goal(weight, goal)
     update_progress()  # Update UI para makita agad ang new goal
     # Truncate long names para hindi ma-overflow at ma-break ang rounded corners ng frame
     display_name = name if len(name) <= 25 else name[:22] + "..."
     profile_title_label.configure(text=f"Hello, {display_name}! Welcome to GainTrack!")  # Personalize greeting
+
+    # If lahat ng fields may input, these line of codes will disable editing
+    name_entry.configure(state="disabled")
+    weight_entry.configure(state="disabled")
+    age_entry.configure(state="disabled")
+    goal_menu.configure(state="disabled")
 
     # Dictionary para sa easy data handling - structured format
     profile_data = {
@@ -179,6 +221,12 @@ def log_food():
 def clear_program():
     global protein_goal  # Modify global variable
 
+    #return them back to normal, so we can clear them again
+    name_entry.configure(state="normal")
+    weight_entry.configure(state="normal")
+    age_entry.configure(state="normal")
+    goal_menu.configure(state="normal")
+
     # Clear all input fields - reset to empty/default state
     food_var.set("")  
     amount_entry.delete(0, tk.END)  
@@ -191,6 +239,7 @@ def clear_program():
     protein_goal = 0  
     update_progress()  
     add_btn.configure(state="normal")  # Re-enable add button
+    
 
     # Delete session profile file para hindi ma-reload ang old profile
     if os.path.exists(STATE_FILE):  # Check kung exists bago i-delete (safe deletion)
@@ -282,6 +331,23 @@ def reset_history():
     messagebox.showinfo("Reset History", "History has been cleared!")
 
 
+def show_food_suggestion(goal_key):
+    """Update the food suggestion panel based on selected goal."""
+    goal = (goal_key or "").upper()
+    suggestion = FOOD_SUGGESTIONS.get(goal)
+
+    if not suggestion:
+        suggestion_icon_var.set("🍽️")
+        suggestion_title_var.set("More ideas coming soon")
+        suggestion_details_var.set("We will add additional meal ideas for this goal.")
+        return
+
+    suggestion_icon_var.set(suggestion.get("emoji", "🍽️"))
+    suggestion_title_var.set(suggestion.get("title", "Recommended Plate"))
+    details = "\n".join(f"• {item}" for item in suggestion.get("items", []))
+    suggestion_details_var.set(details or "Enjoy a balanced meal tailored to your plan.")
+
+
 # GUI Layout
 PROFILE_HEADING = "Set Your Profile"
 
@@ -304,9 +370,33 @@ main_frame.pack(fill="both", expand=True, pady=int(10*scale), padx=int(20*scale)
 progress = ctk.CTkProgressBar(main_frame, width=int(800*scale), height=int(50*scale), progress_color=ACCENT_COLOR)
 progress.pack(pady=int(20*scale))  # Vertical padding para spacing
 
+# Content layout: left (main system) + right (recommendations)
+content_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+content_frame.pack(fill="both", expand=True, padx=int(10*scale), pady=int(10*scale))
+content_frame.grid_columnconfigure(0, weight=3)
+content_frame.grid_columnconfigure(1, weight=2)
+content_frame.grid_rowconfigure(0, weight=1)
+
+left_column = ctk.CTkFrame(content_frame, fg_color="transparent")
+left_column.grid(row=0, column=0, sticky="nsew", padx=int(10*scale), pady=int(10*scale))
+left_column.grid_rowconfigure(0, weight=0)
+left_column.grid_rowconfigure(1, weight=0)
+left_column.grid_rowconfigure(2, weight=0)
+left_column.grid_rowconfigure(3, weight=1)
+
+# Wrapper para consistent horizontal alignment ng main system widgets
+system_wrapper = ctk.CTkFrame(left_column, fg_color="transparent", width=int(720*scale))
+system_wrapper.pack(fill="both", expand=True, padx=int(10*scale), anchor="center")
+system_wrapper.pack_propagate(False)
+
+
+right_column = ctk.CTkFrame(content_frame, fg_color="transparent")
+right_column.grid(row=0, column=1, sticky="nsew", padx=int(10*scale), pady=int(10*scale))
+right_column.grid_rowconfigure(0, weight=1)
+
 # Profile frame - pack_propagate(False) para hindi mag-expand ang frame based sa content, maintaining rounded corners
-profile_frame = ctk.CTkFrame(main_frame, corner_radius=int(50*scale), fg_color=ENTRY_BG, width=int(550*scale), height=int(350*scale))
-profile_frame.pack(pady=int(30*scale), padx=int(10*scale))
+profile_frame = ctk.CTkFrame(system_wrapper, corner_radius=int(50*scale), fg_color=ENTRY_BG, width=int(550*scale), height=int(350*scale))
+profile_frame.pack(pady=int(20*scale), padx=int(15*scale), anchor="center")
 profile_frame.pack_propagate(False)  # Prevent frame from expanding, maintains rounded corners
 # Use grid directly on profile_frame para maiwasan ang overlapping frame issue
 profile_frame.grid_columnconfigure(0, weight=1)
@@ -345,7 +435,7 @@ weight_entry = ctk.CTkEntry(profile_content, width=int(280*scale), height=int(35
                              validate="key", validatecommand=(root.register(validate_weight_input), "%P"))
 weight_entry.grid(row=2, column=1, padx=int(10*scale), pady=int(10*scale))  # Grid layout for alignment
 
-ctk.CTkLabel(
+ctk.CTkLabel(   
     profile_content, 
     text="Age:", 
     font=FONT_LABEL, 
@@ -381,8 +471,8 @@ ctk.CTkButton(profile_content, text="Save Profile", font=FONT_LABEL, command=sav
 
 # ----------------- Food & Buttons Frames -----------------
 # Food Input
-input_frame = ctk.CTkFrame(main_frame, corner_radius=int(20*scale), fg_color=ENTRY_BG, width=int(450*scale), height=int(150*scale))
-input_frame.pack(pady=int(10*scale), padx=int(10*scale))
+input_frame = ctk.CTkFrame(system_wrapper, corner_radius=int(20*scale), fg_color=ENTRY_BG, width=int(450*scale), height=int(150*scale))
+input_frame.pack(pady=int(10*scale), padx=int(15*scale), anchor="center")
 # pack_propagate(False) para hindi mag-shrink ang frame based sa content
 # Ensures consistent frame size regardless of content - better layout control
 input_frame.pack_propagate(False)
@@ -402,12 +492,12 @@ food_menu = ctk.CTkComboBox(input_content, values=list(food_data.keys()), variab
 food_menu.grid(row=0, column=1, padx=int(10*scale), pady=int(10*scale), sticky="ew")
 
 ctk.CTkLabel(input_content, text="Amount (grams):", font=FONT_LABEL, fg_color=None, text_color=TEXT_COLOR).grid(row=1, column=0, padx=int(10*scale), pady=int(10*scale), sticky="e")
-amount_entry = ctk.CTkEntry(input_content, width=int(200*scale), height=int(35*scale), corner_radius=int(10*scale))
+amount_entry = ctk.CTkEntry(input_content, width=int(200*scale), height=int(35*scale), validate="key", validatecommand=(root.register(validate_amount_input), "%P"), corner_radius=int(10*scale))
 amount_entry.grid(row=1, column=1, padx=int(10*scale), pady=int(10*scale), sticky="ew")
 
 # Buttons
-add_btn_frame = ctk.CTkFrame(main_frame, corner_radius=int(20*scale), fg_color=FRAME_BG, width=int(700*scale), height=int(100*scale))
-add_btn_frame.pack(pady=int(20*scale))
+add_btn_frame = ctk.CTkFrame(system_wrapper, corner_radius=int(20*scale), fg_color=FRAME_BG, width=int(700*scale), height=int(100*scale))
+add_btn_frame.pack(pady=int(20*scale), padx=int(15*scale), anchor="center")
 add_btn_frame.pack_propagate(False)
 
 buttons_content = ctk.CTkFrame(add_btn_frame, fg_color="transparent", width=int(600*scale), height=int(50*scale))
@@ -431,6 +521,90 @@ clear_btn = ctk.CTkButton(buttons_content, text="Clear", command=clear_program,
                           fg_color=ACCENT_COLOR, hover_color="#FF6A42", corner_radius=int(15*scale),
                           width=int(200*scale), height=int(30*scale), font=FONT_LABEL)
 clear_btn.grid(row=0, column=2, padx=int(10*scale), sticky="ew")
+
+# ----------------- Food Suggestions Panel (Right Column) -----------------
+suggestions_frame = ctk.CTkFrame(right_column, corner_radius=int(30*scale), fg_color=ENTRY_BG)
+suggestions_frame.pack(fill="both", expand=True)
+
+ctk.CTkLabel(
+    suggestions_frame,
+    text="Food Suggestions",
+    font=("Segoe UI", int(26*scale), "bold"),
+    text_color=TEXT_COLOR
+).pack(pady=(int(20*scale), int(10*scale)))
+
+ctk.CTkLabel(
+    suggestions_frame,
+    text="Choose your goal and try our suggested meals/foods.",
+    font=("Arial", int(16*scale)),
+    text_color=TEXT_COLOR,
+    wraplength=int(320*scale)
+).pack(padx=int(20*scale))
+
+goal_buttons = ctk.CTkFrame(suggestions_frame, fg_color="transparent")
+goal_buttons.pack(pady=int(20*scale), padx=int(20*scale), fill="x")
+goal_buttons.grid_columnconfigure((0, 1, 2), weight=1, uniform="goals")
+
+ctk.CTkButton(
+    goal_buttons,
+    text="Bulking",
+    command=lambda: show_food_suggestion("BULKING"),
+    fg_color=ACCENT_COLOR,
+    hover_color="#FF6A42",
+    corner_radius=int(15*scale),
+    font=FONT_BUTTON
+).grid(row=0, column=0, padx=int(5*scale), sticky="ew")
+
+ctk.CTkButton(
+    goal_buttons,
+    text="Maintenance",
+    command=lambda: show_food_suggestion("MAINTENANCE"),
+    fg_color=ACCENT_COLOR,
+    hover_color="#FF6A42",
+    corner_radius=int(15*scale),
+    font=FONT_BUTTON
+).grid(row=0, column=1, padx=int(5*scale), sticky="ew")
+
+ctk.CTkButton(
+    goal_buttons,
+    text="Cutting",
+    command=lambda: show_food_suggestion("CUTTING"),
+    fg_color=ACCENT_COLOR,
+    hover_color="#FF6A42",
+    corner_radius=int(15*scale),
+    font=FONT_BUTTON
+).grid(row=0, column=2, padx=int(5*scale), sticky="ew")
+
+suggestion_display = ctk.CTkFrame(suggestions_frame, corner_radius=int(25*scale), fg_color=FRAME_BG)
+suggestion_display.pack(fill="both", expand=True, padx=int(20*scale), pady=(0, int(20*scale)))
+suggestion_display.pack_propagate(False)
+
+suggestion_icon_label = ctk.CTkLabel(
+    suggestion_display,
+    textvariable=suggestion_icon_var,
+    font=("Segoe UI Emoji", int(64*scale))
+)
+suggestion_icon_label.pack(pady=(int(20*scale), int(10*scale)))
+
+ctk.CTkLabel(
+    suggestion_display,
+    textvariable=suggestion_title_var,
+    font=("Segoe UI", int(22*scale), "bold"),
+    text_color=TEXT_COLOR,
+    wraplength=int(320*scale)
+).pack(padx=int(20*scale), pady=(0, int(10*scale)))
+
+ctk.CTkLabel(
+    suggestion_display,
+    textvariable=suggestion_details_var,
+    font=("Arial", int(16*scale)),
+    text_color=TEXT_COLOR,
+    justify="left",
+    wraplength=int(320*scale)
+).pack(padx=int(20*scale), pady=(0, int(20*scale)), fill="both", expand=True)
+
+# Optional: default suggestion view on startup
+show_food_suggestion(None)
 
 # Start
 # Load saved profile on startup para ma-restore ang previous session
