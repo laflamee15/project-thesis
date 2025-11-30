@@ -22,6 +22,7 @@ from userfunctions import (
 )
 import os
 from tkinter import messagebox
+from PIL import Image,ImageTk
 
 
 ctk.set_appearance_mode("dark")
@@ -54,29 +55,44 @@ FONT_BUTTON = ("Arial", int(14*scale), "bold")
 FOOD_SUGGESTIONS = {
     "BULKING": {
         "emoji": "🥩",
-        "title": "High-Protein Power Plate",
+        "title": "Here are the food that you can consider!",
         "items": [
-            "Grilled chicken breast with quinoa",
-            "Roasted sweet potato wedges",
-            "Steamed broccoli + olive oil drizzle"
+            "Peanut Butter",
+            "Cheese",
+            "Almonds",
+            "Rice",
+            "Chicken",
+            "Egg",
+            "Salmon",
+            "Pork",
+            "Beef",
+            "Whole Milk",
+            "Soy Milk"
         ]
     },
     "MAINTENANCE": {
         "emoji": "🥗",
-        "title": "Balanced Everyday Bowl",
+        "title": "Here are the food that you can consider!",
         "items": [
-            "Baked salmon with brown rice",
-            "Mixed greens & cherry tomatoes",
-            "Greek yogurt with berries"
+            "Chicken",
+            "Tofu",
+            "Greek Yogurt",
+            "Cottage Cheese",
+            "Oats",
+            "Egg",
+            "Shrimp"
         ]
     },
     "CUTTING": {
         "emoji": "🥦",
-        "title": "Lean & Light Plate",
+        "title": "Here are the food that you can consider!",
         "items": [
-            "Turkey lettuce wraps",
-            "Cauliflower rice stir-fry",
-            "Citrus-infused cucumber salad"
+            "Chicken Breast",
+            "Tuna",
+            "Shrimp",
+            "Egg (remove the yolk)",
+            "Milk",
+            "Tofu"
         ]
     }
 }
@@ -204,6 +220,9 @@ def log_food():
         return
     try:
         amount = float(amount_entry.get())  # Convert amount to float (grams)
+        if amount == 0:
+            messagebox.showerror("Error", "Amount cannot be zero.")
+            return
     except ValueError:  # Catch error kung hindi valid number
         messagebox.showerror("Error", "Enter a valid number for amount.")
         return
@@ -362,6 +381,17 @@ date_label.pack()
 
 protein_display = ctk.CTkLabel(top_frame, text="0g / 0g", font=("Arial", int(42*scale), "bold"), fg_color=None, text_color=TEXT_COLOR)
 protein_display.pack(pady=(10*scale, 20*scale))
+
+# Logo
+logo_image = Image.open(r"C:\Users\EXOUSIA\Documents\CODING\PROJECT THESIS\GainTrack (5).png")
+logo_image = logo_image.resize((120, 120))
+logo_photo = ImageTk.PhotoImage(logo_image)
+
+logo_label = ctk.CTkLabel(root, image=logo_photo, text="", fg_color=BG_COLOR)
+logo_label.image = logo_photo
+logo_label.pack(side="top")
+logo_label.place(relx=0.0, rely=0.0, anchor="nw", x=10, y=10)
+
 
 main_frame = ctk.CTkFrame(root, corner_radius=int(20*scale), fg_color=FRAME_BG)
 main_frame.pack(fill="both", expand=True, pady=int(10*scale), padx=int(20*scale))
